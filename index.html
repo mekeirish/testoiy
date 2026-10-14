@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="fr" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Repo to Cloudflare Bridge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        darkbg: '#0f172a',
+                        cardbg: '#1e293b',
+                        accent: '#f97316'
+                    }
+                }
+            }
+        }
+    </script>
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#4b6cb7">
+<link rel="apple-touch-icon" href="icon.png"></head>
+<body class="bg-darkbg text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="w-full max-w-xl bg-cardbg/80 backdrop-blur-md border border-slate-700/50 rounded-2xl p-6 shadow-2xl">
+        <div class="flex items-center justify-between mb-6">
+            <h1 class="text-xl font-bold tracking-wide text-accent flex items-center gap-2">
+                ⚡ Repo to Cloudflare Bridge
+            </h1>
+            <span class="text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-400 border border-slate-700">mekeirish</span>
+        </div>
+
+        <!-- Configuration Token -->
+        <div class="space-y-4 mb-6">
+            <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1">Cloudflare API Token (Pages:Edit)</label>
+                <input type="password" id="cfToken" placeholder="Votre token Cloudflare" 
+                    class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-slate-200 focus:outline-none focus:border-accent transition">
+            </div>
+        </div>
+
+        <hr class="border-slate-700/60 mb-6">
+
+        <!-- Saisie du Nom du Repo -->
+        <div class="space-y-4 mb-6">
+            <div>
+                <label class="block text-xs font-medium text-slate-400 mb-1">Nom du dépôt GitHub (ex: mon-repo-pwa)</label>
+                <div class="flex items-center bg-slate-900 border border-slate-700 rounded-xl overflow-hidden focus-within:border-accent transition">
+                    <span class="bg-slate-800 text-slate-400 text-xs px-3 py-3 border-r border-slate-700 select-none">github.com/mekeirish/</span>
+                    <input type="text" id="repoName" placeholder="nom-du-repo" 
+                        class="w-full bg-transparent px-4 py-2.5 text-sm text-slate-200 focus:outline-none">
+                </div>
+            </div>
+        </div>
+
+        <!-- Bouton d'action -->
+        <button onclick="deployToCloudflare()" id="deployBtn"
+            class="w-full bg-accent hover:bg-orange-600 text-white font-medium py-3 rounded-xl transition shadow-lg shadow-orange-500/20 flex items-center justify-center gap-2">
+            🚀 Lier et Déployer sur Cloudflare
+        </button>
+
+        <!-- Console de logs -->
+        <div id="logContainer" class="mt-6 hidden">
+            <label class="block text-xs font-medium text-slate-400 mb-1">Journal d'exécution</label>
+            <div id="logs" class="bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs font-mono text-slate-300 h-36 overflow-y-auto space-y-1">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Account ID configuré en dur
+        const ACCOUNT_ID = "5c6f329cab626ccd975f7c28bfd1fd30";
+        const GITHUB_OWNER = "mekeirish";
+
+        // Charger le token enregistré au démarrage
+        window.addEventListener('DOMContentLoaded', () => {
+            if(localStorage.getItem('cf_token')) {
+                document.getElementById('cfToken').value = localStorage.getItem('cf_token');
+            }
+        });
+
+        function log(message, type = 'info') {
+            const container = document.getElementById('logContainer');
+            container.classList.remove('hidden');
+            const logsDiv = document.getElementById('logs');
+            
+            let color = 'text-slate-300';
+            if(type === 'success') color = 'text-emerald-400';
+            if(type === 'error') color = 'text-rose-400';
+            if(type === 'warn') color = 'text-amber-400';
+
+            logsDiv.innerHTML += `<div class="${color}">> ${message}</div>`;
+            logsDiv.scrollTop = logsDiv.scrollHeight;
+        }
+
+        async function deployToCloudflare() {
+            const token = document.getElementById('cfToken').value.trim();
+            const repoInput = document.getElementById('repoName').value.trim();
+
+            if(!token || !repoInput) {
+                alert('Veuillez renseigner votre token Cloudflare et le nom du dépôt.');
+                return;
+            }
+
+            // Sauvegarder le token en local pour confort
+            localStorage.setItem('cf_token', token);
+
+            document.getElementById('logs').innerHTML = '';
+            
+            // Le nom du projet Cloudflare est strictement identique au nom du repo
+            const projectName = repoInput.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+
+            log(`Cible : ${GITHUB_OWNER}/${repoInput}`);
+            log(`Nom du projet Cloudflare : ${projectName}`);
+            log('Connexion à l\'API Cloudflare Pages...');
+
+            try {
+                const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/pages/projects`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: projectName,
+                        production_branch: "main",
+                        source: {
+                            type: "github",
+                            config: {
+                                owner: GITHUB_OWNER,
+                                repo_name: repoInput,
+                                production_branch: "main",
+                                pr_comments_enabled: true,
+                                preview_comments_enabled: true,
+                                production_deployment_enabled: true
+                            }
+                        }
+                    })
+                });
+
+                const data = await response.json();
+
+                if(response.ok) {
+                    log(`Succès ! Le projet "${projectName}" a été créé et lié à votre dépôt.`, 'success');
+                    log(`Cloudflare effectue le premier déploiement automatique.`, 'success');
+                } else {
+                    log(`Erreur API : ${data.errors?.[0]?.message || JSON.stringify(data)}`, 'error');
+                }
+
+            } catch (err) {
+                log(`Erreur réseau : ${err.message}`, 'error');
+            }
+        }
+    </script>
+
+<script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js'));}</script>
+</body>
+</html>
