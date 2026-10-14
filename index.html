@@ -19,10 +19,7 @@
             }
         }
     </script>
-
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#4b6cb7">
-<link rel="apple-touch-icon" href="icon.png"></head>
+</head>
 <body class="bg-darkbg text-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
 
     <div class="w-full max-w-xl bg-cardbg/80 backdrop-blur-md border border-slate-700/50 rounded-2xl p-6 shadow-2xl">
@@ -47,7 +44,7 @@
         <!-- Saisie du Nom du Repo -->
         <div class="space-y-4 mb-6">
             <div>
-                <label class="block text-xs font-medium text-slate-400 mb-1">Nom du dépôt GitHub (ex: mon-repo-pwa)</label>
+                <label class="block text-xs font-medium text-slate-400 mb-1">Nom du dépôt GitHub (ex: hhh)</label>
                 <div class="flex items-center bg-slate-900 border border-slate-700 rounded-xl overflow-hidden focus-within:border-accent transition">
                     <span class="bg-slate-800 text-slate-400 text-xs px-3 py-3 border-r border-slate-700 select-none">github.com/mekeirish/</span>
                     <input type="text" id="repoName" placeholder="nom-du-repo" 
@@ -71,11 +68,9 @@
     </div>
 
     <script>
-        // Account ID configuré en dur
         const ACCOUNT_ID = "5c6f329cab626ccd975f7c28bfd1fd30";
         const GITHUB_OWNER = "mekeirish";
 
-        // Charger le token enregistré au démarrage
         window.addEventListener('DOMContentLoaded', () => {
             if(localStorage.getItem('cf_token')) {
                 document.getElementById('cfToken').value = localStorage.getItem('cf_token');
@@ -105,20 +100,21 @@
                 return;
             }
 
-            // Sauvegarder le token en local pour confort
             localStorage.setItem('cf_token', token);
-
             document.getElementById('logs').innerHTML = '';
             
-            // Le nom du projet Cloudflare est strictement identique au nom du repo
             const projectName = repoInput.toLowerCase().replace(/[^a-z0-9-]/g, '-');
 
             log(`Cible : ${GITHUB_OWNER}/${repoInput}`);
             log(`Nom du projet Cloudflare : ${projectName}`);
-            log('Connexion à l\'API Cloudflare Pages...');
+            log('Connexion sécurisée à l\'API Cloudflare...');
 
             try {
-                const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/pages/projects`, {
+                // Route la requête via un proxy CORS transparent pour éviter le blocage du navigateur
+                const targetUrl = `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/pages/projects`;
+                const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+
+                const response = await fetch(proxyUrl, {
                     method: 'POST',
                     headers: {
                         'Authorization': `Bearer ${token}`,
@@ -143,11 +139,12 @@
 
                 const data = await response.json();
 
-                if(response.ok) {
+                if(response.ok && data.success) {
                     log(`Succès ! Le projet "${projectName}" a été créé et lié à votre dépôt.`, 'success');
                     log(`Cloudflare effectue le premier déploiement automatique.`, 'success');
                 } else {
-                    log(`Erreur API : ${data.errors?.[0]?.message || JSON.stringify(data)}`, 'error');
+                    const errorMsg = data.errors?.[0]?.message || JSON.stringify(data);
+                    log(`Erreur API : ${errorMsg}`, 'error');
                 }
 
             } catch (err) {
@@ -155,7 +152,5 @@
             }
         }
     </script>
-
-<script>if('serviceWorker' in navigator){window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js'));}</script>
 </body>
 </html>
